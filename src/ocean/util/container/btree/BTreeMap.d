@@ -148,8 +148,39 @@ struct BTreeMap(TreeKeyType, TreeValueType, int tree_degree)
 
     public bool insert (KeyType key, ValueType value)
     {
-        return this.impl.insert(key, value);
+        bool added;
+        this.impl.insert(key, value, added);
+        return added;
     }
+
+    /***************************************************************************
+
+        Inserts the (key, value) in the tree. This is passing the copy of the
+        value into the tree, so it's not necessary to manually create copy of
+        it.  Note that for the reference types, this will just copy the
+        reference.
+
+        Params:
+            key = key to insert
+            value = value associated to the key to insert.
+            added = indicator if the value has been added, or the value
+                associated with the key was already in the map
+
+        Returns:
+            Pointer to the element associated with the given key (either existing
+            or new value).
+
+        Complexity:
+            CPU: O(degree * log_degree(n))
+            Memory:O(log_degree(n))
+
+    ***************************************************************************/
+
+    public ValueType* insert (KeyType key, ValueType value, out bool added)
+    {
+        return this.impl.insert(key, value, added);
+    }
+
 
     /******************************************************************************
 
