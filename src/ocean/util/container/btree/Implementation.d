@@ -280,6 +280,28 @@ package struct BTreeMapImplementation (KeyType, ValueType, int tree_degree)
         return node.elements[index].value;
     }
 
+    /******************************************************************************
+
+        Searches the tree for the element with the given key and returns pointer
+        to it's value, or null if not found.
+
+        Params:
+            key = key to find in the tree.
+
+        Returns:
+            pointer to the value associated with the key, or null if not found.
+
+    *******************************************************************************/
+
+    package ValueType* get (KeyType key)
+    {
+        size_t index;
+        auto node = this.get(key, index);
+        if (!node) return null;
+
+        return &node.elements[index].value;
+    }
+
     // implementation
 
     /***************************************************************************
