@@ -235,7 +235,7 @@ public class SafeFork
                 if ( this.child_pid == 0 )
                 {
                     this.dg();
-                    exit(0);
+                    _Exit(0);
                 }
 
                 return true;
