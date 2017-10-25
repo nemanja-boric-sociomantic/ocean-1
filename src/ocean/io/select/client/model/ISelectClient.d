@@ -197,6 +197,29 @@ public abstract class ISelectClient : ITimeoutClient, ISelectable, ISelectClient
 
     /**************************************************************************
 
+        Handles the client and resets from the timeout if handled.
+
+    ***************************************************************************/
+
+    final public bool handleClient ( Event event )
+    {
+        auto ret = this.handle(event);
+
+        if (ret)
+        {
+            if (this.expiry_registration_ !is null)
+            {
+                // reset the timeout and set the new timeout
+                this.expiry_registration_.unregister();
+                this.expiry_registration_.register(this.timeout_us);
+            }
+        }
+
+        return ret;
+    }
+
+    /**************************************************************************
+
         Timeout method, called after a timeout occurs in the SelectDispatcher
         eventLoop. Intended to be overridden by a subclass if required.
 

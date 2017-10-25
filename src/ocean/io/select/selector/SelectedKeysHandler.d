@@ -155,7 +155,7 @@ class SelectedKeysHandler: ISelectedKeysHandler
             {
                 this.checkKeyError(client, key.events);
 
-                unregister_key = !client.handle(key.events);
+                unregister_key = !client.handleClient(key.events);
 
                 debug (ISelectClient) this.logHandled( client, unregister_key);
             }
