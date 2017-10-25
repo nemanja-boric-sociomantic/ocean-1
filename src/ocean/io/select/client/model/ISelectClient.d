@@ -310,6 +310,8 @@ public abstract class ISelectClient : ITimeoutClient, ISelectable, ISelectClient
 
         try if (this.expiry_registration_ !is null)
         {
+            // reset the timeout and start again
+            this.expiry_registration_.unregister();
             this.expiry_registration_.register(this.timeout_us);
         }
         finally
