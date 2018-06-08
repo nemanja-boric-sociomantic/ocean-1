@@ -1,0 +1,491 @@
+/******************************************************************************
+
+    Module for doing non-blocking reads supported by threads.
+
+    This module contains AsyncIO definition. Intented usage of AsyncIO is to
+    perform normally blocking IO calls (disk requests) in fiber-blocking
+    manner.
+
+    Fiber wanting to perform a request should submit its request to AsyncIO
+    using public interface, passing all the arguments normally used by the
+    blocking call and JobNotification instance on which it will be
+    blocked.  After issuing the request, request will be put in the queue and
+    the fiber will block immidiatelly, giving chance to other fibers to run.
+
+    In the background, fixed amount of worker threads are taking request from
+    the queue, and performing it (using blocking call which will in turn block
+    this thread). When finished, the worker thread will resume the blocked fiber,
+    and block on the semaphore waiting for the next request.
+
+    copyright:
+        Copyright (c) 2016-2018 sociomantic labs GmbH. All rights reserved
+
+    License:
+        Boost Software License Version 1.0. See LICENSE.txt for details.
+
+******************************************************************************/
+
+module ocean.util.aio.AsyncIO;
+
+import ocean.transition;
+
+import core.stdc.errno;
+import core.sys.posix.semaphore;
+import core.sys.posix.pthread;
+import core.sys.posix.unistd;
+import core.stdc.stdint;
+import core.stdc.stdio;
+import ocean.core.array.Mutation: copy;
+import ocean.sys.ErrnoException;
+import ocean.io.select.EpollSelectDispatcher;
+
+import ocean.util.aio.internal.JobQueue;
+import ocean.util.aio.internal.ThreadWorker;
+import ocean.util.aio.internal.MutexOps;
+import ocean.util.aio.internal.AioScheduler;
+import ocean.util.aio.JobNotification;
+
+/******************************************************************************
+
+    Class implementing AsyncIO support.
+
+******************************************************************************/
+
+class AsyncIO
+{
+    /**************************************************************************
+
+        Ernno exception instance
+
+        NOTE: must be thrown and catched only from/in main thread, as it is not
+              multithreaded-safe
+
+    **************************************************************************/
+
+    private ErrnoException exception;
+
+
+    /**************************************************************************
+
+        Job queue
+
+   ***************************************************************************/
+
+    private JobQueue jobs;
+
+    /**************************************************************************
+
+        AioScheduler used to wake the ready jobs.
+
+    **************************************************************************/
+
+    private AioScheduler scheduler;
+
+    /**************************************************************************
+
+        Handles of worker threads.
+
+    **************************************************************************/
+
+    private pthread_t[] threads;
+
+
+    /**************************************************************************
+
+        Constructor.
+
+        Params:
+            epoll = epoll select dispatcher instance
+            number_of_threads = number of worker threads to allocate
+
+    **************************************************************************/
+
+    public this (EpollSelectDispatcher epoll, int number_of_threads)
+    {
+
+        this.exception = new ErrnoException;
+
+        this.scheduler = new AioScheduler(this.exception);
+        this.jobs = new JobQueue(this.exception, this.scheduler);
+        this.nonblocking = new typeof(this.nonblocking);
+
+        // create worker threads
+        this.threads.length = number_of_threads;
+
+        foreach (i, tid; this.threads)
+        {
+            // Create a thread passing this instance as a parameter
+            // to thread's entry point
+            this.exception.enforceRetCode!(pthread_create).call(&this.threads[i],
+                null,
+                &thread_entry_point,
+                cast(void*)this.jobs);
+        }
+
+        epoll.register(this.scheduler);
+    }
+
+    /**************************************************************************
+
+        Issues a pread request, blocking the fiber connected to the provided
+        suspended_job until the request finishes.
+
+        This will read buf.length number of bytes from fd to buf, starting
+        from offset.
+
+        Params:
+            buf = buffer to fill
+            fd = file descriptor to read from
+            offset = offset in the file to read from
+            suspended_job = JobNotification instance to
+                block the fiber on
+
+        Returns:
+            number of the bytes read
+
+        Throws:
+            ErrnoException with appropriate errno set in case of failure
+
+    **************************************************************************/
+
+    public size_t pread (void[] buf, int fd, size_t offset,
+            JobNotification suspended_job)
+    {
+        ssize_t ret_val;
+        int errno_val;
+        auto job = this.jobs.reserveJobSlot(&lock_mutex,
+                &unlock_mutex);
+
+        job.recv_buffer.length = buf.length;
+        enableStomping(job.recv_buffer);
+        job.fd = fd;
+        job.suspended_job = suspended_job;
+        job.offset = offset;
+        job.cmd = Job.Command.Read;
+        job.ret_val = &ret_val;
+        job.errno_val = &errno_val;
+        job.user_buffer = buf;
+        job.finalize_results = &finalizeRead;
+
+        // Let the threads waiting on the semaphore know that they
+        // can start doing single read
+        post_semaphore(&this.jobs.jobs_available);
+
+        // Block the fiber
+        suspended_job.wait(job, &this.scheduler.discardResults);
+
+        // At this point, fiber is resumed,
+        // check the return value and throw if needed
+        if (ret_val == -1)
+        {
+            throw this.exception.set(errno_val,
+                    "pread");
+        }
+
+        assert(ret_val >= 0);
+        return cast(size_t)ret_val;
+    }
+
+    /***************************************************************************
+
+        Finalizes the read request - copies the contents of receive buffer
+        to user provided buffer.
+
+        Params:
+            job = job to finalize.
+
+    ***************************************************************************/
+
+    private static void finalizeRead (Job* job)
+    {
+        if (job.ret_val !is null)
+        {
+            *job.ret_val = job.return_value;
+        }
+
+        if (job.return_value >= 0)
+        {
+            auto dest = (job.user_buffer.ptr)[0..job.return_value];
+            copy(dest, job.recv_buffer[0..job.return_value]);
+        }
+    }
+
+    /***************************************************************************
+
+        Set of non-blocking methods. The user is responsible to suspend the fiber,
+        and AsyncIO will not resume it. Instead, the callback will be called
+        where the user can do whatever is required.
+
+    ***************************************************************************/
+
+    public final class Nonblocking
+    {
+        /**************************************************************************
+
+            Issues a pread request, filling the buffer as much as possible,
+            expecting the user to suspend the caller manually.
+
+            This will read buf.length number of bytes from fd to buf, starting
+            from offset.
+
+            Params:
+                buf = buffer to fill
+                ret_val = return value to fill
+                fd = file descriptor to read from
+                offset = offset in the file to read from
+                finish_callback_dg = method to call when the request has finished,
+                    passing the return value of the pread call
+                suspended_job = suspended job to resume upon finishing the
+                    IO operation and calling finish_callback_dg
+
+            Returns:
+                Job that's scheduled
+
+            Throws:
+                ErrnoException with appropriate errno set in case of failure
+
+        **************************************************************************/
+
+        public Job* pread (void[] buf,
+                int fd, size_t offset,
+                JobNotification suspended_job)
+        {
+            auto job = this.outer.jobs.reserveJobSlot(&lock_mutex,
+                    &unlock_mutex);
+
+            job.recv_buffer.length = buf.length;
+            enableStomping(job.recv_buffer);
+
+            job.fd = fd;
+            job.offset = offset;
+            job.cmd = Job.Command.Read;
+            job.user_buffer = buf;
+            job.finalize_results = &finalizeRead;
+            job.suspended_job = suspended_job;
+            suspended_job.register(job, &this.outer.scheduler.discardResults);
+
+            // Let the threads waiting on the semaphore know that they
+            // can start doing single read
+            post_semaphore(&this.outer.jobs.jobs_available);
+
+            return job;
+        }
+    }
+
+    /// Ditto
+    public Nonblocking nonblocking;
+
+    /**************************************************************************
+
+        Issues a fsync request, blocking the fiber connected to the provided
+        suspended_job until the request finishes.
+
+        Synchronize a file's in-core state with storage device.
+
+        Params:
+            fd = file descriptor to perform fsync on
+            suspended_job = JobNotification instance to
+                block the fiber on
+
+        Throws:
+            ErrnoException with appropriate errno set in the case of failure
+
+    **************************************************************************/
+
+    public void fsync (int fd,
+            JobNotification suspended_job)
+    {
+        long ret_val;
+        int errno_val;
+
+        auto job = this.jobs.reserveJobSlot(&lock_mutex,
+                &unlock_mutex);
+
+        job.fd = fd;
+        job.suspended_job = suspended_job;
+        job.cmd = Job.Command.Fsync;
+        job.ret_val = &ret_val;
+        job.errno_val = &errno_val;
+        job.finalize_results = null;
+
+        // Let the threads waiting on the semaphore that they
+        // can perform fsync
+        post_semaphore(&this.jobs.jobs_available);
+
+        // Block the fiber
+        suspended_job.wait(job, &this.scheduler.discardResults);
+
+        // At this point, fiber is resumed,
+        // check the return value and throw if needed
+        if (ret_val == -1)
+        {
+            throw this.exception.set(errno_val,
+                    "fsync");
+        }
+    }
+
+    /**************************************************************************
+
+        Issues a close request, blocking the fiber connected to the provided
+        suspendable request handler until the request finishes.
+
+        Synchronize a file's in-core state with storage device.
+
+        Params:
+            fd = file descriptor to close
+            suspended_job = JobNotification instance to
+                block the caller on
+
+        Throws:
+            ErrnoException with appropriate errno set in the case of failure
+
+    **************************************************************************/
+
+    public void close (int fd,
+            JobNotification suspended_job)
+    {
+        long ret_val;
+        int errno_val;
+
+        auto job = this.jobs.reserveJobSlot(&lock_mutex,
+                &unlock_mutex);
+
+        job.fd = fd;
+        job.suspended_job = suspended_job;
+        job.cmd = Job.Command.Close;
+        job.ret_val = &ret_val;
+        job.errno_val = &errno_val;
+        job.finalize_results = null;
+
+        post_semaphore(&this.jobs.jobs_available);
+
+        // Block the fiber
+        suspended_job.wait(job, &this.scheduler.discardResults);
+
+        // At this point, fiber is resumed,
+        // check the return value and throw if needed
+        if (ret_val == -1)
+        {
+            throw this.exception.set(errno_val,
+                    "close");
+        }
+    }
+
+    /*********************************************************************
+
+        Destroys entire AsyncIO object.
+        It's unusable after this point.
+
+        NOTE: this blocks the calling thread
+
+        Throws:
+            ErrnoException if one of the underlying system calls
+            failed
+
+    *********************************************************************/
+
+    public void destroy ()
+    {
+        // Stop all workers
+        // and wait for all threads to exit
+        this.join();
+
+        this.jobs.destroy(this.exception);
+    }
+
+    /**************************************************************************
+
+        Indicate worker threads not to take any more jobs.
+
+        Throws:
+            ErrnoException if one of the underlying system calls
+            failed
+
+    **************************************************************************/
+
+    private void stopAll ()
+    {
+        this.jobs.stop(&lock_mutex,
+                &unlock_mutex);
+
+        // Let all potential threads blocked on semaphore
+        // move forward and exit
+        for (int i; i < this.threads.length; i++)
+        {
+            post_semaphore(&this.jobs.jobs_available);
+        }
+    }
+
+    /**************************************************************************
+
+        Waits for all threads to finish and checks the exit codes.
+
+        Throws:
+            ErrnoException if one of the underlying system calls
+            failed
+
+    **************************************************************************/
+
+    private void join ()
+    {
+        // We need to tell threads actually to stop working
+        this.stopAll();
+
+        for (int i = 0; i < this.threads.length; i++)
+        {
+            // Note: no need for mutex guarding this
+            // as this is just an array of ids which
+            // will not change during the program's lifetime
+            void* ret_from_thread;
+            int ret = pthread_join(this.threads[i], &ret_from_thread);
+
+            switch (ret)
+            {
+                case 0:
+                    break;
+                default:
+                    throw this.exception.set(ret, "pthread_join");
+                case EDEADLK:
+                    assert(false, "Deadlock was detected");
+                case EINVAL:
+                    assert(false, "Join performed on non-joinable thread" ~
+                            " or another thread is already waiting on it");
+                case ESRCH:
+                    assert(false, "No thread with this tid can be found");
+            }
+
+            // Check the return value from the thread routine
+            if (cast(intptr_t)ret_from_thread != 0)
+            {
+                throw this.exception.set(cast(int)ret_from_thread,
+                        "thread_method");
+            }
+        }
+    }
+
+    /*********************************************************************
+
+        Helper function for posting the semaphore value
+        and checking for the return value
+
+        Params:
+            sem = pointer to the semaphore handle
+
+
+    *********************************************************************/
+
+    private void post_semaphore (sem_t* sem)
+    {
+        int ret = sem_post(sem);
+
+        switch (ret)
+        {
+            case 0:
+                break;
+            default:
+                throw this.exception.set(ret, "sem_post");
+            case EINVAL:
+                assert(false, "The semaphore is not valid");
+        }
+    }
+}
