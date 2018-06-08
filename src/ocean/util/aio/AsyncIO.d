@@ -28,6 +28,7 @@
 module ocean.util.aio.AsyncIO;
 
 import ocean.transition;
+import ocean.core.Verify;
 
 import core.stdc.errno;
 import core.sys.posix.semaphore;
@@ -183,6 +184,41 @@ class AsyncIO
         }
 
         assert(ret_val >= 0);
+        return cast(size_t)ret_val;
+    }
+
+    /***************************************************************************
+
+        Appends a buffer to the file.
+
+        Buffer must be alive during the lifetime of the request (until the
+        notification fires)
+
+    **************************************************************************/
+    
+    public size_t write (Const!(void)[] buf, int fd, JobNotification notification)
+    {
+        ssize_t ret_val;
+        int errno_val;
+        auto job = this.jobs.reserveJobSlot(&lock_mutex, &unlock_mutex);
+
+        //job = job.init;
+        job.recv_buffer = buf;
+        job.fd = fd;
+        job.suspended_job = notification;
+        job.cmd = Job.Command.Write;
+        job.ret_val = &ret_val;
+        job.errno_val = &errno_val;
+
+        post_semaphore(&this.jobs.jobs_available); 
+        notification.wait(job, &this.scheduler.discardResults);
+
+        if (ret_val == -1)
+        {
+            throw this.exception.set(errno_val, "write");
+        }
+
+        verify(ret_val >= 0);
         return cast(size_t)ret_val;
     }
 

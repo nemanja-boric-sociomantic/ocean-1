@@ -46,6 +46,7 @@ public static struct Job
     public enum Command
     {
         Read,
+        Write,
         Fsync,
         Close
     }

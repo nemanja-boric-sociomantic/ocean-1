@@ -83,6 +83,9 @@ extern (C) static void* thread_entry_point (void* job_queue_ptr)
             case Job.Command.Read:
                 ret_value = do_pread(job);
                 break;
+            case Job.Command.Write:
+                ret_value = do_write(job);
+                break;
             case Job.Command.Fsync:
                 ret_value = do_fsync(job);
                 break;
@@ -203,6 +206,49 @@ private static ssize_t do_pread (Job* job)
         }
 
         count += read;
+    }
+
+    return count;
+}
+
+/**************************************************************************
+
+    Wrapper around write call.
+
+    Params:
+        job = job for which the request is executed.
+
+    Returns:
+        number of bytes writen, or -1 in case of error.
+
+**************************************************************************/
+
+private static ssize_t do_write (Job* job)
+{
+    size_t count = 0;
+    // TODO: check sync_writes here
+    while (count < job.recv_buffer.length)
+    {
+        ssize_t ret;
+
+        while (true)
+        {
+            ret = .write(job.fd, job.recv_buffer.ptr + count,
+                        job.recv_buffer.length - count);
+
+            if (ret >= 0 || .errno != EINTR)
+            {
+                break;
+            }
+        }
+
+        // Check for the error
+        if (ret < 0)
+        {
+            return ret;
+        }
+
+        count += ret;
     }
 
     return count;
