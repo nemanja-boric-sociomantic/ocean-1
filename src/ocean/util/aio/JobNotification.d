@@ -69,6 +69,9 @@ abstract class JobNotification
 
     public final void wait (Job* job, typeof(this.remove_dg) remove_dg)
     {
+        scope (failure)
+            this.discardResults();
+
         this.register(job, remove_dg);
         this.wait_();
     }
