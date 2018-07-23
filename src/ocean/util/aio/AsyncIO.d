@@ -109,6 +109,7 @@ class AsyncIO
         this.scheduler = new AioScheduler(this.exception);
         this.jobs = new JobQueue(this.exception, this.scheduler);
         this.nonblocking = new typeof(this.nonblocking);
+        this.blocking = new typeof(this.blocking);
 
         // create worker threads
         this.threads.length = number_of_threads;
@@ -310,6 +311,30 @@ class AsyncIO
 
     /// Ditto
     public Nonblocking nonblocking;
+
+    /// Task wrapper
+    public final class TaskBlocking
+    {
+        import ocean.util.aio.TaskJobNotification;
+        import ocean.task.Task;
+
+        public size_t write (Const!(void)[] buf, int fd)
+        {
+            assert (Task.getThis() !is null);
+            scope JobNotification notification = new TaskJobNotification;
+            return this.outer.write(buf, fd, notification);
+        }
+
+        public size_t pread (void[] buf, int fd, size_t offset)
+        {
+            assert (Task.getThis() !is null);
+            scope JobNotification notification = new TaskJobNotification;
+            return this.outer.pread(buf, fd, offset, notification);
+        }
+    }
+
+    /// ditto
+    public TaskBlocking blocking;
 
     /**************************************************************************
 
