@@ -43,6 +43,15 @@ class AsyncIOUsingApp: DaemonApp
         super(name, desc, VersionInfo.init, settings);
     }
 
+    /// counter value to set from the working thread
+    int counter;
+
+    /// Callback called from another thread to set the counter
+    private void setCounter ()
+    {
+        this.counter++;
+    }
+
     // Called after arguments and config file parsing.
     override protected int run ( Arguments args, ConfigParser config )
     {
@@ -59,6 +68,10 @@ class AsyncIOUsingApp: DaemonApp
 
         test!("==")(buf[], "Hello darkness, my old friend.");
         test!("==")(f.length, buf.length);
+
+        this.async_io.blocking.callDelegate(&setCounter);
+        test!("==")(this.counter, 1);
+
         theScheduler.shutdown();
         return 0; // return code to OS
     }
