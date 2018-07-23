@@ -92,6 +92,9 @@ extern (C) static void* thread_entry_point (void* job_queue_ptr)
             case Job.Command.Close:
                 ret_value = do_close(job);
                 break;
+            case Job.Command.CallDelegate:
+                ret_value = do_call_delegate(job);
+                break;
             default:
                 break;
         }
@@ -252,6 +255,32 @@ private static ssize_t do_write (Job* job)
     }
 
     return count;
+}
+
+/**************************************************************************
+
+    Wrapper around call of the arbitrary delegate.
+
+    Params:
+        job = job for which the request is executed.
+
+    Returns:
+        non-zero if the delegate call finishes successfully, zero
+        if the delegate thrown an exception
+
+**************************************************************************/
+
+private static ssize_t do_call_delegate (Job* job)
+{
+    try
+    {
+        job.user_delegate();
+        return 1;
+    }
+    catch (Exception)
+    {
+        return 0;
+    }
 }
 
 /*********************************************************************

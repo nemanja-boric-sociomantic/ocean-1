@@ -225,6 +225,39 @@ class AsyncIO
 
     /***************************************************************************
 
+        Appends a buffer to the file.
+
+        Buffer must be alive during the lifetime of the request (until the
+        notification fires)
+
+    **************************************************************************/
+
+    public size_t callDelegate (void delegate() user_delegate, JobNotification notification)
+    {
+        ssize_t ret_val;
+        int errno_val;
+        auto job = this.jobs.reserveJobSlot(&lock_mutex, &unlock_mutex);
+
+        job.user_delegate = user_delegate;
+        job.suspended_job = notification;
+        job.cmd = Job.Command.CallDelegate;
+        job.ret_val = &ret_val;
+        job.errno_val = &errno_val;
+
+        post_semaphore(&this.jobs.jobs_available);
+        notification.wait(job, &this.scheduler.discardResults);
+
+        if (ret_val == -1)
+        {
+            throw this.exception.set(errno_val, "delegate call");
+        }
+
+        verify(ret_val >= 0);
+        return cast(size_t)ret_val;
+    }
+
+    /***************************************************************************
+
         Finalizes the read request - copies the contents of receive buffer
         to user provided buffer.
 
@@ -330,6 +363,13 @@ class AsyncIO
             assert (Task.getThis() !is null);
             scope JobNotification notification = new TaskJobNotification;
             return this.outer.pread(buf, fd, offset, notification);
+        }
+
+        public size_t callDelegate (void delegate() user_delegate)
+        {
+            assert (Task.getThis() !is null);
+            scope JobNotification notification = new TaskJobNotification;
+            return this.outer.callDelegate(user_delegate, notification);
         }
     }
 
