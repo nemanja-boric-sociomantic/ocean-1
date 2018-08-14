@@ -34,9 +34,11 @@ import core.sys.posix.signal: SIGRTMIN;
 
 **************************************************************************/
 
-extern (C) static void* thread_entry_point (void* job_queue_ptr)
+extern (C) static void* thread_entry_point(ThreadInitializationContext)(void* init_context_ptr)
 {
-    JobQueue jobs = cast(JobQueue)job_queue_ptr;
+    ThreadInitializationContext* init_context = cast(ThreadInitializationContext*)init_context_ptr;
+    JobQueue jobs = init_context.job_queue;
+    typeof(ThreadInitializationContext.makeContext()) context;
 
     // Block all signals delivered to this thread
     sigset_t block_set;
@@ -45,6 +47,15 @@ extern (C) static void* thread_entry_point (void* job_queue_ptr)
     // because programming error, and we can't use assert here
     cast(void) sigfillset(&block_set);
     cast(void)pthread_sigmask(SIG_BLOCK, &block_set, null);
+
+    {
+        thread_lock_mutex(&init_context.init_mutex);
+        scope (exit)
+            thread_unlock_mutex(&init_context.init_mutex);
+
+        if (init_context.makeContext !is null)
+            context = init_context.makeContext();
+    }
 
     // Wait for new jobs and execute them
     while (true)

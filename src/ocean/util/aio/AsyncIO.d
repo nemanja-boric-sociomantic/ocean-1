@@ -52,7 +52,7 @@ import ocean.util.aio.JobNotification;
 
 ******************************************************************************/
 
-class AsyncIO
+class AsyncIO(Context)
 {
     /**************************************************************************
 
@@ -90,6 +90,26 @@ class AsyncIO
 
     private pthread_t[] threads;
 
+    /**************************************************************************
+
+        Struct providing the initialization data for the thread.
+
+    **************************************************************************/
+
+    public struct ThreadInitializationContext
+    {
+        JobQueue job_queue;
+        Context delegate() makeContext;
+        pthread_mutex_t init_mutex;
+    }
+
+    /**************************************************************************
+
+        Ditto
+
+    **************************************************************************/
+
+    private ThreadInitializationContext thread_init_context;
 
     /**************************************************************************
 
@@ -98,10 +118,12 @@ class AsyncIO
         Params:
             epoll = epoll select dispatcher instance
             number_of_threads = number of worker threads to allocate
+            make_context = delegate to create a context within a thread
 
     **************************************************************************/
 
-    public this (EpollSelectDispatcher epoll, int number_of_threads)
+    public this (EpollSelectDispatcher epoll, int number_of_threads,
+            Context delegate() makeContext = null)
     {
 
         this.exception = new ErrnoException;
@@ -114,14 +136,19 @@ class AsyncIO
         // create worker threads
         this.threads.length = number_of_threads;
 
+        this.thread_init_context.job_queue = this.jobs;
+        this.thread_init_context.makeContext = makeContext;
+        exception.enforceRetCode!(pthread_mutex_init).call(
+                &this.thread_init_context.init_mutex, null);
+
         foreach (i, tid; this.threads)
         {
             // Create a thread passing this instance as a parameter
             // to thread's entry point
             this.exception.enforceRetCode!(pthread_create).call(&this.threads[i],
                 null,
-                &thread_entry_point,
-                cast(void*)this.jobs);
+                &thread_entry_point!(ThreadInitializationContext),
+                cast(void*)&this.thread_init_context);
         }
 
         epoll.register(this.scheduler);
@@ -197,7 +224,7 @@ class AsyncIO
 
     **************************************************************************/
     
-    public size_t write (Const!(void)[] buf, int fd, JobNotification notification)
+    public size_t write (void[] buf, int fd, JobNotification notification)
     {
         ssize_t ret_val;
         int errno_val;
@@ -351,7 +378,7 @@ class AsyncIO
         import ocean.util.aio.TaskJobNotification;
         import ocean.task.Task;
 
-        public size_t write (Const!(void)[] buf, int fd)
+        public size_t write (void[] buf, int fd)
         {
             assert (Task.getThis() !is null);
             scope JobNotification notification = new TaskJobNotification;
@@ -590,3 +617,5 @@ class AsyncIO
         }
     }
 }
+
+public alias AsyncIO!(int) DefaultAsyncIO;
