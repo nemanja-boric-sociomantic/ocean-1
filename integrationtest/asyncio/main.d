@@ -26,10 +26,34 @@ import ocean.task.Task;
 import ocean.util.aio.AsyncIO;
 import ocean.io.device.File;
 import ocean.util.test.DirectorySandbox;
+import core.memory;
+import core.stdc.stdio;
+import integrationtest.asyncio.curl;
 
 class AsyncIOUsingApp: DaemonApp
 {
     AsyncIO async_io;
+
+    static class CurlContext: AsyncIO.Context
+    {
+        CURL curl;
+    }
+
+	AsyncIO.Context makeContext ()
+	{
+        GC.disable();
+		auto ctx = new CurlContext;
+        GC.enable();
+		ctx.curl = curl_easy_init();
+
+        if (ctx.curl)
+        {
+            FILE* dev_null = fopen("/dev/null", "w+");
+            curl_easy_setopt(ctx.curl, CURLoption.WRITEDATA, dev_null);
+        }
+
+        return ctx.curl? ctx : null;
+	}
 
     this ( )
     {
@@ -38,41 +62,56 @@ class AsyncIOUsingApp: DaemonApp
         istring desc = "Testing async IO";
 
         DaemonApp.OptionalSettings settings;
+        settings.scheduler_config.worker_fiber_limit = 6_000;
+        settings.scheduler_config.task_queue_limit = 6_000;
+        settings.scheduler_config.suspended_task_limit = 6_000;
         settings.use_task_ext = true;
 
         super(name, desc, VersionInfo.init, settings);
     }
 
-    /// counter value to set from the working thread
-    int counter;
-
-    /// Callback called from another thread to set the counter
-    private void setCounter (AsyncIO.Context ctx)
+    class MyTask: Task
     {
-        this.counter++;
+        private void curlGetSomething (AsyncIO.Context ctx)
+        {
+           GC.disable();
+           auto curl_context = cast(CurlContext)ctx;
+           GC.enable();
+           curl_easy_setopt(curl_context.curl, CURLoption.URL, "http://example.com".ptr);
+
+           /* example.com is redirected, so we tell libcurl to follow redirection */ 
+           curl_easy_setopt(curl_context.curl, CURLoption.FOLLOWLOCATION, 1L);
+
+           auto res = curl_easy_perform(curl_context.curl);
+           if (res == 0)
+           {
+               long resp;
+               curl_easy_getinfo(curl_context.curl, CurlInfo.CURLINFO_RESPONSE_CODE, &resp);
+               printf("HTTP remote party status: %d\n", resp);
+           }
+        }
+
+        void run ()
+        {
+            this.outer.async_io.blocking.callDelegate(&this.curlGetSomething);
+        }
     }
+
+    Task[] arr;
 
     // Called after arguments and config file parsing.
     override protected int run ( Arguments args, ConfigParser config )
     {
-        this.async_io = new AsyncIO(theScheduler.epoll, 10);
+        this.async_io = new AsyncIO(theScheduler.epoll, 5_000, &makeContext);
 
-        // open a new file
-        auto f = new File("var/output.txt", File.ReadWriteAppending);
+        for (int i  = 0; i < 5_000; i++)
+            arr ~= new MyTask;
 
-        char[] buf = "Hello darkness, my old friend.".dup;
-        this.async_io.blocking.write(buf, f.fileHandle());
+        foreach (t; arr)
+            theScheduler.schedule(t);
 
-        buf[] = '\0';
-        this.async_io.blocking.pread(buf, f.fileHandle(), 0);
-
-        test!("==")(buf[], "Hello darkness, my old friend.");
-        test!("==")(f.length, buf.length);
-
-        this.async_io.blocking.callDelegate(&setCounter);
-        test!("==")(this.counter, 1);
-
-        theScheduler.shutdown();
+        //theSchedler.processEvents();
+        //theScheduler.shutdown();
         return 0; // return code to OS
     }
 }
@@ -80,6 +119,7 @@ class AsyncIOUsingApp: DaemonApp
 version(UnitTest) {} else
 void main(istring[] args)
 {
+    curl_global_init(CURL_GLOBAL_DEFAULT);
 
     initScheduler(SchedulerConfiguration.init);
     theScheduler.exception_handler = (Task t, Exception e) {

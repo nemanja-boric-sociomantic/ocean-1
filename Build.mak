@@ -35,6 +35,8 @@ $O/test-filesystemevent: override LDFLAGS += -lrt
 
 $O/test-httpserver: override LDFLAGS += -lglib-2.0
 
+$O/test-asyncio: override LDFLAGS += -lglib-2.0 -lcurl
+
 # Link unittests to all used libraries
 $O/%unittests: override LDFLAGS += -lglib-2.0 -lpcre -lxml2 -lxslt -lebtree \
-		-lreadline -lhistory -llzo2 -lbz2 -lz -ldl -lgcrypt -lgpg-error -lrt
+		-lreadline -lhistory -llzo2 -lbz2 -lz -ldl -lgcrypt -lgpg-error -lrt -lcurl
