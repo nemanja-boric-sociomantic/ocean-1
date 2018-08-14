@@ -83,7 +83,7 @@ public static struct Job
 
     ****************************************************************/
 
-    public void delegate () user_delegate;
+    public void delegate (AsyncIO.Context) user_delegate;
 
     /****************************************************************
 

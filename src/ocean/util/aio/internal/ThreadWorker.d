@@ -23,6 +23,7 @@ import core.sys.posix.pthread;
 import core.sys.posix.unistd;
 import core.stdc.stdint;
 import core.stdc.stdio;
+import ocean.util.aio.AsyncIO;
 
 import ocean.util.aio.internal.JobQueue;
 
@@ -104,7 +105,7 @@ extern (C) static void* thread_entry_point(ThreadInitializationContext)(void* in
                 ret_value = do_close(job);
                 break;
             case Job.Command.CallDelegate:
-                ret_value = do_call_delegate(job);
+                ret_value = do_call_delegate(context, job);
                 break;
             default:
                 break;
@@ -281,11 +282,11 @@ private static ssize_t do_write (Job* job)
 
 **************************************************************************/
 
-private static ssize_t do_call_delegate (Job* job)
+private static ssize_t do_call_delegate (AsyncIO.Context context, Job* job)
 {
     try
     {
-        job.user_delegate();
+        job.user_delegate(context);
         return 1;
     }
     catch (Exception)

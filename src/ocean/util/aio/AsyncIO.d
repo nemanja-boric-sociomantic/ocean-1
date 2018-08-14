@@ -52,8 +52,19 @@ import ocean.util.aio.JobNotification;
 
 ******************************************************************************/
 
-class AsyncIO(Context)
+class AsyncIO
 {
+    /**************************************************************************
+
+        Base class for the thread worker context
+
+    **************************************************************************/
+
+    public static class Context
+    {
+
+    }
+
     /**************************************************************************
 
         Ernno exception instance
@@ -99,7 +110,7 @@ class AsyncIO(Context)
     public struct ThreadInitializationContext
     {
         JobQueue job_queue;
-        Context delegate() makeContext;
+        AsyncIO.Context delegate() makeContext;
         pthread_mutex_t init_mutex;
     }
 
@@ -123,7 +134,7 @@ class AsyncIO(Context)
     **************************************************************************/
 
     public this (EpollSelectDispatcher epoll, int number_of_threads,
-            Context delegate() makeContext = null)
+            AsyncIO.Context delegate() makeContext = null)
     {
 
         this.exception = new ErrnoException;
@@ -259,7 +270,7 @@ class AsyncIO(Context)
 
     **************************************************************************/
 
-    public size_t callDelegate (void delegate() user_delegate, JobNotification notification)
+    public size_t callDelegate (void delegate(AsyncIO.Context) user_delegate, JobNotification notification)
     {
         ssize_t ret_val;
         int errno_val;
@@ -392,7 +403,7 @@ class AsyncIO(Context)
             return this.outer.pread(buf, fd, offset, notification);
         }
 
-        public size_t callDelegate (void delegate() user_delegate)
+        public size_t callDelegate (void delegate(AsyncIO.Context) user_delegate)
         {
             assert (Task.getThis() !is null);
             scope JobNotification notification = new TaskJobNotification;
@@ -617,5 +628,3 @@ class AsyncIO(Context)
         }
     }
 }
-
-public alias AsyncIO!(int) DefaultAsyncIO;

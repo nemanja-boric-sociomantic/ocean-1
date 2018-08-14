@@ -29,7 +29,7 @@ import ocean.util.test.DirectorySandbox;
 
 class AsyncIOUsingApp: DaemonApp
 {
-    DefaultAsyncIO async_io;
+    AsyncIO async_io;
 
     this ( )
     {
@@ -47,7 +47,7 @@ class AsyncIOUsingApp: DaemonApp
     int counter;
 
     /// Callback called from another thread to set the counter
-    private void setCounter ()
+    private void setCounter (AsyncIO.Context ctx)
     {
         this.counter++;
     }
@@ -55,7 +55,7 @@ class AsyncIOUsingApp: DaemonApp
     // Called after arguments and config file parsing.
     override protected int run ( Arguments args, ConfigParser config )
     {
-        this.async_io = new DefaultAsyncIO(theScheduler.epoll, 10);
+        this.async_io = new AsyncIO(theScheduler.epoll, 10);
 
         // open a new file
         auto f = new File("var/output.txt", File.ReadWriteAppending);
