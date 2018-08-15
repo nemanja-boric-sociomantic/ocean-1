@@ -103,6 +103,14 @@ class AsyncIO
 
     /**************************************************************************
 
+        Indicator if the AsyncIO is destroyed
+
+    **************************************************************************/
+
+    private bool destroyed;
+
+    /**************************************************************************
+
         Struct providing the initialization data for the thread.
 
     **************************************************************************/
@@ -542,11 +550,14 @@ class AsyncIO
 
     public void destroy ()
     {
+        assert(!this.destroyed);
+
         // Stop all workers
         // and wait for all threads to exit
         this.join();
 
         this.jobs.destroy(this.exception);
+        this.destroyed = true;
     }
 
     /**************************************************************************
