@@ -30,6 +30,8 @@ import ocean.util.aio.internal.JobQueue;
 
 import core.sys.posix.signal: SIGRTMIN;
 
+extern(C) int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr);
+
 /**************************************************************************
 
     Thread's entry point.
@@ -58,8 +60,17 @@ extern (C) static void* thread_entry_point(ThreadInitializationContext)(void* in
         if (init_context.makeContext !is null)
         {
             context = init_context.makeContext();
-            GC.addRoot(cast(void*)context);
         }
+
+        pthread_attr_t attr;
+        void* stack_addr;
+        size_t stack_size;
+
+        pthread_getattr_np(pthread_self(), &attr);
+        pthread_attr_getstack(&attr, &stack_addr, &stack_size);
+        pthread_attr_destroy(&attr);
+
+        GC.addRange(stack_addr, stack_size);
 
         init_context.to_create--;
     }
