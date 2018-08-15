@@ -66,6 +66,9 @@ class AsyncIOUsingApp: DaemonApp
 
     class MyTask: Task
     {
+        char[] recv_buffer;
+        size_t received;
+
         private void curlGetSomething (AsyncIO.Context ctx)
         {
            auto curl_context = cast(CurlContext)ctx;
@@ -73,6 +76,8 @@ class AsyncIOUsingApp: DaemonApp
            curl_easy_setopt(curl_context.curl, CURLoption.URL, "http://example.com".ptr);
 
            curl_easy_setopt(curl_context.curl, CURLoption.FOLLOWLOCATION, 1L);
+           curl_easy_setopt(curl_context.curl, CURLoption.WRITEFUNCTION, &MyTask.write_data);
+           curl_easy_setopt(curl_context.curl, CURLoption.WRITEDATA, cast(void*)this);
 
            auto res = curl_easy_perform(curl_context.curl);
            if (res == 0)
@@ -82,10 +87,22 @@ class AsyncIOUsingApp: DaemonApp
            }
         }
 
+        private static extern(C) void write_data(void* buffer, size_t size, size_t nmemb, void* task_ptr)
+        {
+            auto task = cast(MyTask)task_ptr;
+            task.recv_buffer[task.received..task.received+nmemb] = cast(char[])buffer[0..nmemb];
+            task.received += nmemb;
+        }
+
         override void run ()
         {
+            recv_buffer.length = 15_000;
+
             this.outer.async_io.blocking.callDelegate(&this.curlGetSomething);
             this.outer.count++;
+
+            // request is here finished
+            Stdout.formatln("Response body: {}", recv_buffer[0..received]);
 
             if (this.outer.count % 1000 == 0)
                 printf("Done %d requests.\n", this.outer.count);
