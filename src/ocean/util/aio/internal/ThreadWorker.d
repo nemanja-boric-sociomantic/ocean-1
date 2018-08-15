@@ -17,6 +17,7 @@
 
 module ocean.util.aio.internal.ThreadWorker;
 
+import core.memory;
 import core.stdc.errno;
 import core.sys.posix.semaphore;
 import core.sys.posix.pthread;
@@ -55,7 +56,10 @@ extern (C) static void* thread_entry_point(ThreadInitializationContext)(void* in
             thread_unlock_mutex(&init_context.init_mutex);
 
         if (init_context.makeContext !is null)
+        {
             context = init_context.makeContext();
+            GC.addRoot(cast(void*)context);
+        }
     }
 
     // Wait for new jobs and execute them
