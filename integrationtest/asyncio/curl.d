@@ -1363,7 +1363,7 @@ void curl_global_cleanup();
  * Appends a string to a linked list. If no list exists, it will be created
  * first. Returns the new list, after appending.
  */
-//struct curl_slist *curl_slist_append(struct curl_slist *, char *);
+curl_slist *curl_slist_append(curl_slist *, char *);
 
 /*
  * NAME curl_slist_free_all()
@@ -1372,7 +1372,7 @@ void curl_global_cleanup();
  *
  * free a previously built curl_slist.
  */
-//void curl_slist_free_all(struct curl_slist *);
+void curl_slist_free_all(curl_slist *);
 
 /*
  * NAME curl_getdate()
@@ -1386,3 +1386,8 @@ void curl_global_cleanup();
 //time_t curl_getdate(char *p, time_t *unused);
 
 
+struct curl_slist
+{
+    char *data;
+    curl_slist *next;
+}
