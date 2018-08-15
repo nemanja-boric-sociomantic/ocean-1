@@ -60,7 +60,11 @@ extern (C) static void* thread_entry_point(ThreadInitializationContext)(void* in
             context = init_context.makeContext();
             GC.addRoot(cast(void*)context);
         }
+
+        init_context.to_create--;
     }
+
+    pthread_cond_signal(&init_context.init_cond);
 
     // Wait for new jobs and execute them
     while (true)

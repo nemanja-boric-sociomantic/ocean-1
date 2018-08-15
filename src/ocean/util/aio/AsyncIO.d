@@ -112,6 +112,8 @@ class AsyncIO
         JobQueue job_queue;
         AsyncIO.Context delegate() makeContext;
         pthread_mutex_t init_mutex;
+        pthread_cond_t init_cond;
+        int to_create;
     }
 
     /**************************************************************************
@@ -146,11 +148,14 @@ class AsyncIO
 
         // create worker threads
         this.threads.length = number_of_threads;
+        this.thread_init_context.to_create = number_of_threads;
 
         this.thread_init_context.job_queue = this.jobs;
         this.thread_init_context.makeContext = makeContext;
         exception.enforceRetCode!(pthread_mutex_init).call(
                 &this.thread_init_context.init_mutex, null);
+        exception.enforceRetCode!(pthread_cond_init).call(
+                &this.thread_init_context.init_cond, null);
 
         foreach (i, tid; this.threads)
         {
@@ -161,6 +166,15 @@ class AsyncIO
                 &thread_entry_point!(ThreadInitializationContext),
                 cast(void*)&this.thread_init_context);
         }
+
+        // wait all threads to create
+        pthread_mutex_lock(&this.thread_init_context.init_mutex);
+        while (this.thread_init_context.to_create > 0)
+        {
+            pthread_cond_wait(&thread_init_context.init_cond, &this.thread_init_context.init_mutex);
+        }
+
+        pthread_mutex_unlock(&this.thread_init_context.init_mutex);
 
         epoll.register(this.scheduler);
     }
