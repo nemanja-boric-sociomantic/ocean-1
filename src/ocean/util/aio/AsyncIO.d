@@ -157,12 +157,15 @@ class AsyncIO
         exception.enforceRetCode!(pthread_cond_init).call(
                 &this.thread_init_context.init_cond, null);
 
+        pthread_attr_t attr;
+        pthread_attr_setstacksize(&attr, 256 * 1024);
+
         foreach (i, tid; this.threads)
         {
             // Create a thread passing this instance as a parameter
             // to thread's entry point
             this.exception.enforceRetCode!(pthread_create).call(&this.threads[i],
-                null,
+                &attr,
                 &thread_entry_point!(ThreadInitializationContext),
                 cast(void*)&this.thread_init_context);
         }
