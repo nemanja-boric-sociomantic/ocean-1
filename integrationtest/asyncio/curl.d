@@ -28,81 +28,81 @@ import ocean.transition;
 mixin(Typedef!(void*, "CURL"));
 mixin(Typedef!(int, "curl_socket_t"));
 
-const CURL_SOCKET_BAD = -1;
+static immutable CURL_SOCKET_BAD = -1;
 
 
-const CURL_ERROR_SIZE = 0x100;
+static immutable CURL_ERROR_SIZE = 0x100;
 
 /* Tests have proven that 20K is a very bad buffer size for uploads on
  Windows, while 16K for some odd reason performed a lot better.
  We do the ifndef check to allow this value to easier be changed at build
  time for those who feel adventurous. */
-const CURL_MAX_WRITE_SIZE = 0x4000;
+static immutable CURL_MAX_WRITE_SIZE = 0x4000;
 
 /* This is a magic return code for the write callback that, when returned,
    will signal libcurl to pause receiving on the current transfer. */
-const CURL_WRITEFUNC_PAUSE = 0x10000001;
+static immutable CURL_WRITEFUNC_PAUSE = 0x10000001;
 
 alias size_t function (char* buffer, size_t size, size_t nitems, void *outstream) curl_write_callback;
 
 /* These are the return codes for the seek callbacks */
-const CURL_SEEKFUNC_OK = 0;
-const CURL_SEEKFUNC_FAIL = 1; /* fail the entire transfer */
-const CURL_SEEKFUNC_CANTSEEK = 2; /* tell libcurl seeking can't be done, so
+static immutable CURL_SEEKFUNC_OK = 0;
+static immutable CURL_SEEKFUNC_FAIL = 1; /* fail the entire transfer */
+static immutable CURL_SEEKFUNC_CANTSEEK = 2; /* tell libcurl seeking can't be done, so
                                     libcurl might try other means instead */
 
 //alias int function (void *instream, curl_off_t offset, int origin) curl_seek_callback; /* 'whence' */
 
 /* This is a return code for the read callback that, when returned, will
    signal libcurl to immediately abort the current transfer. */
-const CURL_READFUNC_ABORT = 0x10000000;
+static immutable CURL_READFUNC_ABORT = 0x10000000;
 /* This is a return code for the read callback that, when returned, will
    signal libcurl to pause sending data on the current transfer. */
-const CURL_READFUNC_PAUSE = 0x10000001;
+static immutable CURL_READFUNC_PAUSE = 0x10000001;
 
 alias size_t function (char *buffer, size_t size, size_t nitems, void *instream) curl_read_callback;
 
 
 /* CURLPROTO_ defines are for the CURLOPT_*PROTOCOLS options */
-const CURLPROTO_HTTP   = (1 << 0x0);
-const CURLPROTO_HTTPS  = (1 << 0x1);
-const CURLPROTO_FTP    = (1 << 0x2);
-const CURLPROTO_FTPS   = (1 << 0x3);
-const CURLPROTO_SCP    = (1 << 0x4);
-const CURLPROTO_SFTP   = (1 << 0x5);
-const CURLPROTO_TELNET = (1 << 0x6);
-const CURLPROTO_LDAP   = (1 << 0x7);
-const CURLPROTO_LDAPS  = (1 << 0x8);
-const CURLPROTO_DICT   = (1 << 0x9);
-const CURLPROTO_FILE   = (1 << 0xA);
-const CURLPROTO_TFTP   = (1 << 0xB);
-const CURLPROTO_ALL    = (~0); /* enable everything */
+static immutable CURLPROTO_HTTP   = (1 << 0x0);
+static immutable CURLPROTO_HTTPS  = (1 << 0x1);
+static immutable CURLPROTO_FTP    = (1 << 0x2);
+static immutable CURLPROTO_FTPS   = (1 << 0x3);
+static immutable CURLPROTO_SCP    = (1 << 0x4);
+static immutable CURLPROTO_SFTP   = (1 << 0x5);
+static immutable CURLPROTO_TELNET = (1 << 0x6);
+static immutable CURLPROTO_LDAP   = (1 << 0x7);
+static immutable CURLPROTO_LDAPS  = (1 << 0x8);
+static immutable CURLPROTO_DICT   = (1 << 0x9);
+static immutable CURLPROTO_FILE   = (1 << 0xA);
+static immutable CURLPROTO_TFTP   = (1 << 0xB);
+static immutable CURLPROTO_ALL    = (~0); /* enable everything */
 
-const CURLAUTH_NONE             = 0;        /* nothing */
-const CURLAUTH_BASIC            = (1<<0);   /* Basic (default) */
-const CURLAUTH_DIGEST           = (1<<1);   /* Digest */
-const CURLAUTH_GSSNEGOTIATE     = (1<<2);   /* GSS-Negotiate */
-const CURLAUTH_NTLM             = (1<<3);   /* NTLM */
-const CURLAUTH_DIGEST_IE        = (1<<4);   /* Digest with IE flavour */
-const CURLAUTH_ANY              = (~CURLAUTH_DIGEST_IE);  /* all fine types set */
-const CURLAUTH_ANYSAFE          = (~(CURLAUTH_BASIC|CURLAUTH_DIGEST_IE));
+static immutable CURLAUTH_NONE             = 0;        /* nothing */
+static immutable CURLAUTH_BASIC            = (1<<0);   /* Basic (default) */
+static immutable CURLAUTH_DIGEST           = (1<<1);   /* Digest */
+static immutable CURLAUTH_GSSNEGOTIATE     = (1<<2);   /* GSS-Negotiate */
+static immutable CURLAUTH_NTLM             = (1<<3);   /* NTLM */
+static immutable CURLAUTH_DIGEST_IE        = (1<<4);   /* Digest with IE flavour */
+static immutable CURLAUTH_ANY              = (~CURLAUTH_DIGEST_IE);  /* all fine types set */
+static immutable CURLAUTH_ANYSAFE          = (~(CURLAUTH_BASIC|CURLAUTH_DIGEST_IE));
 
-const CURLSSH_AUTH_ANY          = (~0);     /* all types supported by the server */
-const CURLSSH_AUTH_NONE         = 0;        /* none allowed, silly but complete */
-const CURLSSH_AUTH_PUBLICKEY    = (1<<0);   /* public/private key files */
-const CURLSSH_AUTH_PASSWORD     = (1<<1);   /* password */
-const CURLSSH_AUTH_HOST         = (1<<2);   /* host key files */
-const CURLSSH_AUTH_KEYBOARD     = (1<<3);   /* keyboard interactive */
-const CURLSSH_AUTH_DEFAULT      = CURLSSH_AUTH_ANY;
+static immutable CURLSSH_AUTH_ANY          = (~0);     /* all types supported by the server */
+static immutable CURLSSH_AUTH_NONE         = 0;        /* none allowed, silly but complete */
+static immutable CURLSSH_AUTH_PUBLICKEY    = (1<<0);   /* public/private key files */
+static immutable CURLSSH_AUTH_PASSWORD     = (1<<1);   /* password */
+static immutable CURLSSH_AUTH_HOST         = (1<<2);   /* host key files */
+static immutable CURLSSH_AUTH_KEYBOARD     = (1<<3);   /* keyboard interactive */
+static immutable CURLSSH_AUTH_DEFAULT      = CURLSSH_AUTH_ANY;
 
 
   /* Below here follows defines for the CURLOPT_IPRESOLVE option. If a host
      name resolves addresses using more than one IP protocol version, this
      option might be handy to force libcurl to use a specific IP version. */
-const CURL_IPRESOLVE_WHATEVER = 0; /* default, resolves addresses to all IP
+static immutable CURL_IPRESOLVE_WHATEVER = 0; /* default, resolves addresses to all IP
                                      versions that your system allows */
-const CURL_IPRESOLVE_V4 = 1; /* resolve to ipv4 addresses */
-const E_V6 = 2; /* resolve to ipv6 addresses */
+static immutable CURL_IPRESOLVE_V4 = 1; /* resolve to ipv4 addresses */
+static immutable E_V6 = 2; /* resolve to ipv6 addresses */
 
   /* These enums are for use with the CURLOPT_HTTP_VERSION option. */
 enum {
@@ -140,10 +140,10 @@ enum {
    CURL_REDIR_POST_301 and CURL_REDIR_POST_302 can be bitwise ORed so that
    CURL_REDIR_POST_301 | CURL_REDIR_POST_302 == CURL_REDIR_POST_ALL */
 
-const CURL_REDIR_GET_ALL = 0;
-const CURL_REDIR_POST_301 = 1;
-const CURL_REDIR_POST_302 = 2;
-const CURL_REDIR_POST_ALL = (CURL_REDIR_POST_301|CURL_REDIR_POST_302);
+static immutable CURL_REDIR_GET_ALL = 0;
+static immutable CURL_REDIR_POST_301 = 1;
+static immutable CURL_REDIR_POST_302 = 2;
+static immutable CURL_REDIR_POST_ALL = (CURL_REDIR_POST_301|CURL_REDIR_POST_302);
 
 enum curl_TimeCond
 {
@@ -155,10 +155,10 @@ enum curl_TimeCond
 }
 
 
-const CURLOPTTYPE_LONG = 0;
-const CURLOPTTYPE_OBJECTPOINT = 10000;
-const CURLOPTTYPE_FUNCTIONPOINT = 20000;
-const CURLOPTTYPE_OFF_T = 30000;
+static immutable CURLOPTTYPE_LONG = 0;
+static immutable CURLOPTTYPE_OBJECTPOINT = 10000;
+static immutable CURLOPTTYPE_FUNCTIONPOINT = 20000;
+static immutable CURLOPTTYPE_OFF_T = 30000;
 
 
 /* three convenient "aliases" that follow the name scheme better */
@@ -804,12 +804,12 @@ enum CURLoption
 }
 
 
-const CURLINFO_STRING = 0x100000;
-const CURLINFO_LONG   = 0x200000;
-const CURLINFO_DOUBLE = 0x300000;
-const CURLINFO_SLIST  = 0x400000;
-const CURLINFO_MASK   = 0x0fffff;
-const CURLINFO_TYPEMASK = 0xf00000;
+static immutable CURLINFO_STRING = 0x100000;
+static immutable CURLINFO_LONG   = 0x200000;
+static immutable CURLINFO_DOUBLE = 0x300000;
+static immutable CURLINFO_SLIST  = 0x400000;
+static immutable CURLINFO_MASK   = 0x0fffff;
+static immutable CURLINFO_TYPEMASK = 0xf00000;
 
 enum CurlInfo
 {
@@ -996,11 +996,11 @@ enum curl_closepolicy
   CURLCLOSEPOLICY_LAST /* last, never use this */
 }
 
-const CURL_GLOBAL_SSL     = (1 << 0);
-const CURL_GLOBAL_WIN32   = (1 << 1);
-const CURL_GLOBAL_ALL     = (CURL_GLOBAL_SSL|CURL_GLOBAL_WIN32);
-const CURL_GLOBAL_NOTHING = 0;
-const CURL_GLOBAL_DEFAULT = CURL_GLOBAL_ALL;
+static immutable CURL_GLOBAL_SSL     = (1 << 0);
+static immutable CURL_GLOBAL_WIN32   = (1 << 1);
+static immutable CURL_GLOBAL_ALL     = (CURL_GLOBAL_SSL|CURL_GLOBAL_WIN32);
+static immutable CURL_GLOBAL_NOTHING = 0;
+static immutable CURL_GLOBAL_DEFAULT = CURL_GLOBAL_ALL;
 
 
 /****************************************************************************
@@ -1016,20 +1016,20 @@ enum CURLversion
   CURLVERSION_LAST /* never actually use this */
 }
 
-const CURL_VERSION_IPV6         = (1 << 0x0);  // IPv6-enabled
-const CURL_VERSION_KERBEROS4    = (1 << 0x1);  // kerberos auth is supported
-const CURL_VERSION_SSL          = (1 << 0x2);  // SSL options are present
-const CURL_VERSION_LIBZ         = (1 << 0x3);  // libz features are present
-const CURL_VERSION_NTLM         = (1 << 0x4);  // NTLM auth is supported
-const CURL_VERSION_GSSNEGOTIATE = (1 << 0x5);  // Negotiate auth support
-const CURL_VERSION_DEBUG        = (1 << 0x6);  // built with debug capabilities
-const CURL_VERSION_ASYNCHDNS    = (1 << 0x7);  // asynchronous dns resolves
-const CURL_VERSION_SPNEGO       = (1 << 0x8);  // SPNEGO auth
-const CURL_VERSION_LARGEFILE    = (1 << 0x9);  // supports files bigger than 2GB
-const CURL_VERSION_IDN          = (1 << 0xA);  // International Domain Names support
-const CURL_VERSION_SSPI         = (1 << 0xB);  // SSPI is supported
-const CURL_VERSION_CONV         = (1 << 0xC);  // character conversions supported
-const CURL_VERSION_CURLDEBUG    = (1 << 0xD);  // debug memory tracking supported
+static immutable CURL_VERSION_IPV6         = (1 << 0x0);  // IPv6-enabled
+static immutable CURL_VERSION_KERBEROS4    = (1 << 0x1);  // kerberos auth is supported
+static immutable CURL_VERSION_SSL          = (1 << 0x2);  // SSL options are present
+static immutable CURL_VERSION_LIBZ         = (1 << 0x3);  // libz features are present
+static immutable CURL_VERSION_NTLM         = (1 << 0x4);  // NTLM auth is supported
+static immutable CURL_VERSION_GSSNEGOTIATE = (1 << 0x5);  // Negotiate auth support
+static immutable CURL_VERSION_DEBUG        = (1 << 0x6);  // built with debug capabilities
+static immutable CURL_VERSION_ASYNCHDNS    = (1 << 0x7);  // asynchronous dns resolves
+static immutable CURL_VERSION_SPNEGO       = (1 << 0x8);  // SPNEGO auth
+static immutable CURL_VERSION_LARGEFILE    = (1 << 0x9);  // supports files bigger than 2GB
+static immutable CURL_VERSION_IDN          = (1 << 0xA);  // International Domain Names support
+static immutable CURL_VERSION_SSPI         = (1 << 0xB);  // SSPI is supported
+static immutable CURL_VERSION_CONV         = (1 << 0xC);  // character conversions supported
+static immutable CURL_VERSION_CURLDEBUG    = (1 << 0xD);  // debug memory tracking supported
 
 
 /*
@@ -1203,14 +1203,14 @@ char* curl_easy_strerror(CURLcode);
  */
 CURLcode curl_easy_pause(CURL handle, int bitmask);
 
-const CURLPAUSE_RECV      = (1<<0);
-const CURLPAUSE_RECV_CONT = (0);
+static immutable CURLPAUSE_RECV      = (1<<0);
+static immutable CURLPAUSE_RECV_CONT = (0);
 
-const CURLPAUSE_SEND      = (1<<2);
-const CURLPAUSE_SEND_CONT = (0);
+static immutable CURLPAUSE_SEND      = (1<<2);
+static immutable CURLPAUSE_SEND_CONT = (0);
 
-const CURLPAUSE_ALL       = (CURLPAUSE_RECV|CURLPAUSE_SEND);
-const CURLPAUSE_CONT      = (CURLPAUSE_RECV_CONT|CURLPAUSE_SEND_CONT);
+static immutable CURLPAUSE_ALL       = (CURLPAUSE_RECV|CURLPAUSE_SEND);
+static immutable CURLPAUSE_CONT      = (CURLPAUSE_RECV_CONT|CURLPAUSE_SEND_CONT);
 
 
 /*

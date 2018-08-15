@@ -144,7 +144,7 @@ class AsyncIO
     **************************************************************************/
 
     public this (EpollSelectDispatcher epoll, int number_of_threads,
-            AsyncIO.Context delegate() makeContext = null)
+            scope AsyncIO.Context delegate() makeContext = null)
     {
 
         this.exception = new ErrnoException;
@@ -295,7 +295,7 @@ class AsyncIO
 
     **************************************************************************/
 
-    public size_t callDelegate (void delegate(AsyncIO.Context) user_delegate, JobNotification notification)
+    public size_t callDelegate (scope void delegate(AsyncIO.Context) user_delegate, JobNotification notification)
     {
         ssize_t ret_val;
         int errno_val;
@@ -428,7 +428,7 @@ class AsyncIO
             return this.outer.pread(buf, fd, offset, notification);
         }
 
-        public size_t callDelegate (void delegate(AsyncIO.Context) user_delegate)
+        public size_t callDelegate (scope void delegate(AsyncIO.Context) user_delegate)
         {
             assert (Task.getThis() !is null);
             scope JobNotification notification = new TaskJobNotification;
