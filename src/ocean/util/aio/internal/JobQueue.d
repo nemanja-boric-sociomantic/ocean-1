@@ -449,6 +449,9 @@ public static class JobQueue
     public bool recycleJob(MutexOp) (Job* job, MutexOp lock_mutex,
             MutexOp unlock_mutex)
     {
+        if (this.cancel_further_jobs)
+            return false;
+
         lock_mutex(&this.jobs_mutex);
         scope(exit)
         {
