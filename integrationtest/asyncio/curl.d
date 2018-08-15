@@ -1,4 +1,4 @@
-module dive.net.curl.c.curl;
+module integrationtest.asyncio.curl;
 
 /***************************************************************************
  *                                  _   _ ____  _
